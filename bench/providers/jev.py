@@ -10,8 +10,14 @@ per input token):
   tier   Choice over A/B/C/D/X. This is the prediction the benchmark scores.
   gate1  Noul: is the manual work paid for (a cost the client could name)?
   gate2  Noul: can the org fund a $2,250+ build from revenue or a program budget?
-The gate probabilities go into `extra`, so a gates-then-tier composite can be tried offline later
-without paying for another run.
+The gate probabilities also go into `extra`, so other composites can be tried offline later.
+
+Prompt versions (the run name carries the version, so each one's results are kept):
+  v1  "When evidence is thin, choose B." Jev read that literally and sent thin C/D/X entities to B.
+  v2  The thin-evidence rule applies only between A and B, and B needs some sign of paid staff or
+      revenue. Plus a rule in code: a B whose funding gate (gate2) is under FUNDING_FLOOR falls to
+      Jev's best of C/D/X. The floor was picked on the dev split from v1's answers (dev accuracy
+      63% to 74%, contact recall 100% to 96%). The unadjusted tier is kept in extra["raw_tier"].
 
 Confidence: the probability Jev puts on the chosen tier, since the evaluator reads confidence as
 "probability this tier is correct" (calibration error, cascade threshold). Jev's own `confidence`
@@ -26,6 +32,8 @@ from .base import Prediction
 
 DEFAULT_MODEL = "jev-1.13.0"  # pinned, not jev-latest, so the numbers stay tied to one version
 PRICE_PER_MTOK_INPUT = {"jev-1.13.0": 0.042}  # output tokens are free (docs.typesafe.ai/models)
+PROMPT_VERSION = "v2"
+FUNDING_FLOOR = 0.12
 
 GATES = (
     "Fosterwerks sells fixed-price automation builds of $2,250 to $16,000. A prospect qualifies "
@@ -40,13 +48,15 @@ TIER = {
     "instructions": {
         "task": "Which triage tier fits this entity, based only on the evidence given?",
         "qualification": GATES,
-        "rule": "When the evidence is missing or thin, choose B, not A. Sounding techy is not evidence of budget.",
+        "rule": "If an entity looks like an A but the evidence for paid staff or funding is thin, choose B "
+                "instead of A. Sounding techy is not evidence of budget. Thin evidence is not a reason to "
+                "choose B for a solo, tiny, defunct, or volunteer entity: those are C, D, or X.",
     },
     "criteria": {
         "A": "Contact now: evidence shows both conditions are met (paid staff, named revenue or budget, "
              "or funding) and there is visible manual or operational work worth automating.",
-        "B": "Contact after checking: probably meets both conditions, but the evidence is thin and "
-             "needs one more check before outreach.",
+        "B": "Contact after checking: there is some concrete sign of paid staff, revenue, or funding, and "
+             "it probably meets both conditions, but that evidence needs one more check before outreach.",
         "C": "Real, operating business that cannot plausibly fund a $2,250 build today.",
         "D": "Solo or side business: one person, no paid staff, and no manual-labor cost anyone pays for.",
         "X": "Not a prospect: defunct, cannot be found, only a person's name, a volunteer group with "
@@ -75,7 +85,7 @@ class Jev:
         from typesafe_sdk import Choice, Noul, TypeSafeClient
 
         self.model = model
-        self.name = f"jev:{model}"
+        self.name = f"jev:{model}:{PROMPT_VERSION}"
         self.client = TypeSafeClient(model=model)  # retries 429s with backoff by default
         self.questions = {
             "tier": Choice(instructions=TIER["instructions"], criteria=TIER["criteria"]),
@@ -100,18 +110,24 @@ class Jev:
         latency = (time.perf_counter() - t0) * 1000
 
         tier = resp.choices["tier"]
+        gate2 = resp.nouls["gate2"].noul
+        choice = tier.choice
+        if choice == "B" and gate2 < FUNDING_FLOOR:
+            # No sign it can fund a build: not a contact. Use Jev's best non-contact tier.
+            choice = max("CDX", key=tier.probabilities.get)
         cost = resp.usage.input_tokens * PRICE_PER_MTOK_INPUT[self.model] / 1_000_000
         extra = {
             "probabilities": tier.probabilities,
+            "raw_tier": tier.choice,
             "jev_confidence": tier.confidence,
             "gate1": resp.nouls["gate1"].noul,
-            "gate2": resp.nouls["gate2"].noul,
+            "gate2": gate2,
             "input_tokens": resp.usage.input_tokens,
             "output_tokens": resp.usage.output_tokens,
             "request_id": _request_id(resp),
             "served_by": resp.model,
         }
-        return Prediction(item["id"], self.name, tier.choice, float(tier.probabilities[tier.choice]),
+        return Prediction(item["id"], self.name, choice, float(tier.probabilities[choice]),
                           cost, latency, extra=extra)
 
 
