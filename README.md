@@ -4,6 +4,27 @@ Can a fast, typed classifier (TypeSafe's **Jev**) make most prospect-triage deci
 of an LLM's cost, and hand only the uncertain ones to Claude? This measures it on real data: the
 a real prospect triage of Detroit small businesses (290 entities, tiers A/B/C/D/X, 29 hand-checked verdicts).
 
+## Results (test split, 203 items)
+
+| | Accuracy | Contact precision | Contact recall | Cost / 1k items | Median latency |
+|---|---|---|---|---|---|
+| Rules baseline | 51.2% | 70.7% | 89.2% | $0 | ~0 ms |
+| Jev (jev-1.13.0, prompt v2) | 69.5% | 81.1% | 92.3% | $0.04 | 216 ms |
+| Jev, escalate to Claude below 0.70 | 75.9% | 82.2% | 92.3% | $0.86 | 253 ms |
+| Jev, escalate to Claude below 0.80 | 79.3% | 84.7% | 93.8% | $1.14 | 278 ms |
+| Claude Opus 5.5 (effort low) | 80.3% | 84.7% | 93.8% | $2.55 | 2,058 ms |
+
+The 0.70 threshold was chosen on the dev split; 0.80 is shown for reference. At 0.70 the cascade
+sends 32% of items to Claude and keeps 94% of Claude's accuracy at a third of the cost.
+"Contact" means tier A or B, the decision that actually triggers outreach.
+
+What moved Jev from 57.6% to 69.5%: v1 said "when the evidence is thin, choose B", and Jev read it
+literally, sending thin one-person and defunct entities to B. v2 scopes that rule to A versus B
+and asks for a concrete sign of paid staff or revenue before B. Tuned on dev only.
+
+Caveats: 203 test items (about 20 hand-checked), so differences of a couple of points are noise.
+Cost and latency gaps are large enough to hold. Whole study cost under $1 in API calls.
+
 ## Setup
 
 ```bash
