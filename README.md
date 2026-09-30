@@ -17,8 +17,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m bench.run --provider baseline --split all          # free, offline, checks the harness
 .venv/bin/python -m bench.run --provider claude --split dev --limit 20  # small paid sample first
 .venv/bin/python -m bench.run --provider claude --split test           # Claude baseline
-.venv/bin/python -m bench.run --provider jev --split test              # once JEV_API_KEY exists
-.venv/bin/python -m bench.evaluate --split test --fast jev --strong claude__claude-opus-5-5__low
+.venv/bin/python -m bench.run --provider jev --split dev --limit 20     # needs TYPESAFE_API_KEY; ~$0.00004/item
+.venv/bin/python -m bench.run --provider jev --split test              # pinned to jev-1.13.0
+.venv/bin/python -m bench.evaluate --split test --fast jev__jev-1.13.0 --strong claude__claude-opus-5-5__low
 ```
 
 `--model` and `--effort` compare Claude settings (e.g. `--model claude-haiku-4-5`). Every run

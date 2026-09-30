@@ -26,14 +26,14 @@ def make_provider(args):
         return Claude(model=args.model, effort=args.effort)
     if args.provider == "jev":
         from .providers.jev import Jev
-        return Jev()
+        return Jev(model=args.model) if args.model.startswith("jev") else Jev()
     raise SystemExit(f"Unknown provider {args.provider}")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--provider", required=True, choices=["baseline", "claude", "jev"])
-    ap.add_argument("--model", default="claude-opus-5-5")
+    ap.add_argument("--model", default="claude-opus-5-5", help="Claude model, or a Jev model ID with --provider jev")
     ap.add_argument("--effort", default="low", choices=["low", "medium", "high", "xhigh", "max"])
     ap.add_argument("--split", default="dev", choices=["dev", "test", "all"])
     ap.add_argument("--limit", type=int, default=0, help="Only the first N items (0 = all)")
