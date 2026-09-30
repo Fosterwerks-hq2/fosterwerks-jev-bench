@@ -11,11 +11,11 @@ import anthropic
 from ..dataset import DATA
 from .base import Prediction, format_item
 
-# $ per million tokens: (input, output). Cache writes bill at 1.25x input, cache reads at 0.1x.
+# $ per million tokens: (input, output, cache read). Cache writes bill at 1.25x input.
 PRICES = {
-    "claude-opus-5-5": (4.00, 20.00),
-    "claude-sonnet-5-5": (2.00, 10.00),
-    "claude-haiku-4-5": (1.00, 5.00),
+    "claude-opus-5-5": (4.00, 20.00, 0.20),
+    "claude-sonnet-5-5": (2.00, 10.00, 0.20),
+    "claude-haiku-4-5": (1.00, 5.00, 0.10),
 }
 # Models that take output_config.effort and the server-side refusal fallback.
 EFFORT_MODELS = {"claude-opus-5-5", "claude-sonnet-5-5"}
@@ -49,10 +49,10 @@ class Claude:
         self.system = [{"type": "text", "text": INSTRUCTIONS + rubric, "cache_control": {"type": "ephemeral"}}]
 
     def _cost(self, usage) -> float:
-        p_in, p_out = PRICES[self.model]
+        p_in, p_out, p_cache = PRICES[self.model]
         cache_w = getattr(usage, "cache_creation_input_tokens", 0) or 0
         cache_r = getattr(usage, "cache_read_input_tokens", 0) or 0
-        return (usage.input_tokens * p_in + cache_w * p_in * 1.25 + cache_r * p_in * 0.1
+        return (usage.input_tokens * p_in + cache_w * p_in * 1.25 + cache_r * p_cache
                 + usage.output_tokens * p_out) / 1_000_000
 
     def predict(self, item: dict) -> Prediction:
