@@ -1,0 +1,6 @@
+# Prospect data is private (it names real businesses). Only aggregate results get published.
+data/
+results/*.jsonl
+.venv/
+__pycache__/
+.env
