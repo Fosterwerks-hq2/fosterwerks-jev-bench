@@ -1,0 +1,5 @@
+# Direct dependencies, loose ranges. Edit this file, then regenerate requirements.txt:
+#   pip install -r requirements.in && pip freeze --all | grep -viE '^(pip|setuptools|wheel)==' (keep this header)
+anthropic>=1.0
+pydantic>=2
+typesafe-sdk>=0.7
